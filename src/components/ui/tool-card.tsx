@@ -75,7 +75,7 @@ export function ToolCard({
       className="group flex items-center gap-4 rounded-xl border border-border bg-card p-4 transition-all hover:shadow-md hover:border-primary/30"
     >
       {rank !== undefined && (
-        <span className="w-8 text-center text-lg font-bold text-muted">
+        <span className="w-6 sm:w-8 text-center text-sm sm:text-lg font-bold text-muted">
           {rank}
         </span>
       )}
@@ -91,7 +91,7 @@ export function ToolCard({
         </div>
         <div className="flex items-center gap-2 mt-1">
           <span
-            className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${CATEGORY_COLORS[category] ?? "bg-stone-100 text-stone-700"}`}
+            className={`hidden sm:inline-block rounded-full px-2 py-0.5 text-xs font-medium ${CATEGORY_COLORS[category] ?? "bg-stone-100 text-stone-700"}`}
           >
             {category}
           </span>

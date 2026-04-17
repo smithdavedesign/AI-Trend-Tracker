@@ -287,9 +287,9 @@ export const weeklyPipeline = inngest.createFunction(
     });
 
     // Step 8: Generate comparisons for top tools
-    await step.run("generate-comparisons", async () => {
+    const enrichmentStats = await step.run("generate-comparisons", async () => {
       const { enrichComparisons } = await import("@/lib/agents/enrichment/enrich-tool");
-      await enrichComparisons(weekOf);
+      return enrichComparisons(weekOf);
     });
 
     // Step 9: Trigger ISR revalidation
@@ -315,6 +315,7 @@ export const weeklyPipeline = inngest.createFunction(
           status: "completed",
           toolsProcessed,
           errors: errors.length > 0 ? errors : null,
+          stats: enrichmentStats,
         })
         .where(eq(pipelineRuns.id, runId));
     });

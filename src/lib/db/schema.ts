@@ -192,6 +192,7 @@ export const pipelineRuns = pgTable("pipeline_runs", {
   toolsProcessed: integer("tools_processed").notNull().default(0),
   errors: jsonb("errors").default([]),
   runType: runTypeEnum("run_type").notNull().default("full"),
+  stats: jsonb("stats").default({}),
 });
 
 // ─── Digest Subscribers ──────────────────────────────────

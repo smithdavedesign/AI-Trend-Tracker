@@ -7,8 +7,20 @@ import { desc, eq, and, or } from "drizzle-orm";
  * Generate AI-powered comparison blurbs for top tool pairs.
  * Called after all tools are scored for the week.
  */
-export async function enrichComparisons(weekOf: string) {
-  if (!process.env.ANTHROPIC_API_KEY) return;
+export interface EnrichmentStats {
+  claudeCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostUsd: number;
+}
+
+// claude-sonnet-4-6 pricing (per million tokens)
+const INPUT_COST_PER_M = 3;
+const OUTPUT_COST_PER_M = 15;
+
+export async function enrichComparisons(weekOf: string): Promise<EnrichmentStats> {
+  const stats: EnrichmentStats = { claudeCalls: 0, inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 };
+  if (!process.env.ANTHROPIC_API_KEY) return stats;
 
   const client = new Anthropic();
   const db = getDb();
@@ -28,7 +40,7 @@ export async function enrichComparisons(weekOf: string) {
     .orderBy(desc(tools.radarScore))
     .limit(10);
 
-  if (topTools.length < 2) return;
+  if (topTools.length < 2) return stats;
 
   // Adjacent pairs (1v2, 2v3, …) + one cross-category pair
   const pairs: [typeof topTools[0], typeof topTools[0]][] = [];
@@ -97,6 +109,10 @@ Set confidence lower (< 60) when the tools have similar scores across all dimens
         messages: [{ role: "user", content: prompt }],
       });
 
+      stats.claudeCalls++;
+      stats.inputTokens += response.usage.input_tokens;
+      stats.outputTokens += response.usage.output_tokens;
+
       const text =
         response.content[0].type === "text"
           ? response.content[0].text.trim()
@@ -124,4 +140,13 @@ Set confidence lower (< 60) when the tools have similar scores across all dimens
       continue;
     }
   }
+
+  stats.estimatedCostUsd =
+    Math.round(
+      ((stats.inputTokens / 1_000_000) * INPUT_COST_PER_M +
+        (stats.outputTokens / 1_000_000) * OUTPUT_COST_PER_M) *
+        10_000
+    ) / 10_000;
+
+  return stats;
 }

@@ -120,6 +120,8 @@ export default async function AdminPage() {
                   <th className="text-left p-3 font-medium">Status</th>
                   <th className="text-right p-3 font-medium">Tools</th>
                   <th className="text-right p-3 font-medium">Duration</th>
+                  <th className="text-right p-3 font-medium">Claude calls</th>
+                  <th className="text-right p-3 font-medium">Est. cost</th>
                   <th className="text-right p-3 font-medium">Issues</th>
                 </tr>
               </thead>
@@ -144,6 +146,14 @@ export default async function AdminPage() {
                         <td className="p-3 text-right">{run.toolsProcessed}</td>
                         <td className="p-3 text-right">{duration === null ? "—" : `${duration}s`}</td>
                         <td className="p-3 text-right">
+                          {(run.stats as { claudeCalls?: number } | null)?.claudeCalls ?? "—"}
+                        </td>
+                        <td className="p-3 text-right">
+                          {(run.stats as { estimatedCostUsd?: number } | null)?.estimatedCostUsd == null
+                            ? "—"
+                            : `$${(run.stats as { estimatedCostUsd: number }).estimatedCostUsd.toFixed(4)}`}
+                        </td>
+                        <td className="p-3 text-right">
                           <span className="flex items-center justify-end gap-2">
                             {crawlErrors.length > 0 && (
                               <span className="text-danger font-medium">{crawlErrors.length} err</span>
@@ -161,7 +171,7 @@ export default async function AdminPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-muted">
+                    <td colSpan={7} className="p-8 text-center text-muted">
                       No pipeline runs yet. The first run happens Monday 6AM UTC.
                     </td>
                   </tr>
@@ -241,16 +251,32 @@ export default async function AdminPage() {
 
       {/* Manual trigger info */}
       <section className="mt-8">
-        <div className="rounded-xl border border-border bg-card p-4">
-          <h3 className="font-semibold mb-2">Manual Pipeline Trigger</h3>
-          <p className="text-sm text-muted mb-3">
-            Send an event to Inngest to trigger a pipeline run manually:
-          </p>
-          <code className="block text-xs bg-background rounded-lg p-3 overflow-auto">
-            {String.raw`curl -X POST http://localhost:8288/e/aidar \
+        <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+          <h3 className="font-semibold">Manual Pipeline Trigger</h3>
+          <div>
+            <p className="text-xs font-medium text-muted uppercase tracking-wide mb-1">Local dev (Inngest dev server)</p>
+            <code className="block text-xs bg-background rounded-lg p-3 overflow-auto whitespace-pre">
+              {String.raw`curl -X POST http://localhost:8288/e/aidar \
   -H "Content-Type: application/json" \
   -d '{"name": "aidar/weekly-pipeline", "data": {}}'`}
-          </code>
+            </code>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted uppercase tracking-wide mb-1">Production (Inngest Cloud)</p>
+            <code className="block text-xs bg-background rounded-lg p-3 overflow-auto whitespace-pre">
+              {String.raw`curl -X POST https://api.inngest.com/e/$INNGEST_EVENT_KEY \
+  -H "Content-Type: application/json" \
+  -d '{"name": "aidar/weekly-pipeline", "data": {}}'`}
+            </code>
+            <p className="text-xs text-muted mt-2">
+              Register your webhook at{" "}
+              <a href="https://app.inngest.com" className="text-primary hover:underline" target="_blank" rel="noreferrer">
+                app.inngest.com
+              </a>{" "}
+              → Apps → Sync URL:{" "}
+              <span className="font-mono">{process.env.NEXT_PUBLIC_SITE_URL ?? "https://your-domain.com"}/api/inngest</span>
+            </p>
+          </div>
         </div>
       </section>
     </div>
