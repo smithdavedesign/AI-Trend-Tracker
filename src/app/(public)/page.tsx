@@ -4,7 +4,7 @@ import { desc, inArray, isNotNull } from "drizzle-orm";
 import { ToolCard } from "@/components/ui/tool-card";
 import Link from "next/link";
 
-export const revalidate = 3600; // ISR: 1 hour
+export const dynamic = "force-dynamic";
 
 const CATEGORIES = [
   { id: "llm", label: "LLMs", emoji: "🧠" },

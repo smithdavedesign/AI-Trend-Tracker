@@ -9,7 +9,7 @@ import type { SubScores } from "@/lib/schemas";
 import Link from "next/link";
 import type { Metadata } from "next";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,

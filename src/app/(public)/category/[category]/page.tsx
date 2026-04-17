@@ -5,7 +5,7 @@ import { ToolCard } from "@/components/ui/tool-card";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 const VALID_CATEGORIES = ["llm", "coding", "agents", "infra", "vertical"] as const;
 
@@ -16,10 +16,6 @@ const CATEGORY_META: Record<string, { title: string; description: string }> = {
   infra: { title: "Infrastructure", description: "Model serving, vector databases, and deployment tools." },
   vertical: { title: "Vertical AI", description: "Domain-specific AI tools for search, design, writing, and more." },
 };
-
-export async function generateStaticParams() {
-  return VALID_CATEGORIES.map((category) => ({ category }));
-}
 
 export async function generateMetadata({
   params,
