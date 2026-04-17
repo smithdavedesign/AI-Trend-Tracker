@@ -1,0 +1,32 @@
+<svg viewBox="0 0 200 48" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <!-- Radar icon -->
+  <g transform="translate(24, 24)">
+    <!-- Outer ring -->
+    <circle cx="0" cy="0" r="20" stroke="#6366F1" stroke-width="1.5" fill="none"/>
+    <!-- Inner rings -->
+    <circle cx="0" cy="0" r="13" stroke="#6366F1" stroke-width="0.75" opacity="0.4" fill="none"/>
+    <circle cx="0" cy="0" r="6" stroke="#6366F1" stroke-width="0.75" opacity="0.25" fill="none"/>
+    <!-- Crosshairs -->
+    <line x1="0" y1="-20" x2="0" y2="20" stroke="#6366F1" stroke-width="0.5" opacity="0.2"/>
+    <line x1="-20" y1="0" x2="20" y2="0" stroke="#6366F1" stroke-width="0.5" opacity="0.2"/>
+    <!-- Sweep cone -->
+    <path d="M0,0 L-3,-19.8 A20,20 0 0,1 14.1,-14.1 Z" fill="url(#sweep)" opacity="0.6"/>
+    <!-- Signal dots -->
+    <circle cx="8" cy="-12" r="2.5" fill="#10B981"/>
+    <circle cx="-5" cy="9" r="2" fill="#10B981" opacity="0.7"/>
+    <circle cx="14" cy="3" r="1.5" fill="#10B981" opacity="0.5"/>
+    <!-- Center dot -->
+    <circle cx="0" cy="0" r="2" fill="#6366F1"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="52" y="20" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="#1C1917" letter-spacing="0.5">AI</text>
+  <text x="68" y="20" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="11" font-weight="400" fill="#1C1917" letter-spacing="0.5">Radar</text>
+  <text x="52" y="34" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="7" font-weight="400" fill="#6366F1" letter-spacing="1.5">SIGNALS · NOT · OPINIONS</text>
+  <!-- Gradient defs -->
+  <defs>
+    <linearGradient id="sweep" x1="0" y1="0" x2="1" y2="0" gradientTransform="rotate(-45)">
+      <stop offset="0%" stop-color="#6366F1" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#6366F1" stop-opacity="0.05"/>
+    </linearGradient>
+  </defs>
+</svg>
