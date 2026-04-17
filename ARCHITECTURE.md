@@ -83,7 +83,9 @@ flowchart TB
         API_SUB["/api/subscribe"]
         API_DIG["/api/digest"]
         API_OG["/api/og"]
+        API_LOGIN["/api/admin/login"]
         RSS["/rss.xml"]
+        FEED["/feed.json"]
         SITEMAP["/sitemap.xml"]
     end
 
@@ -91,11 +93,13 @@ flowchart TB
     START --> FETCH --> TIER
     TIER --> Crawlers
     Crawlers --> STORE_SIG --> SCORE --> STORE_SCORE
-    STORE_SCORE --> ENRICH --> REVAL --> DIGEST --> DONE
+    STORE_SCORE --> DEAD["Dead tool detection<br/>90d no commits + release → isDead"]
+    DEAD --> ENRICH --> REVAL --> DIGEST --> DONE
 
     STORE_SIG --> T_SIGNALS
     STORE_SCORE --> T_SCORES
     STORE_SCORE --> T_TOOLS
+    DEAD --> T_TOOLS
     ENRICH --> T_COMP
     DONE --> T_RUNS
 
@@ -122,22 +126,26 @@ src/
 │   │   ├── methodology/page.tsx
 │   │   ├── graveyard/page.tsx
 │   │   └── layout.tsx         # Shared header + footer
-│   ├── admin/page.tsx         # Internal dashboard
+│   ├── admin/
+│   │   ├── page.tsx           # Pipeline monitoring dashboard (password-protected)
+│   │   └── login/page.tsx     # Admin login form
 │   ├── api/
 │   │   ├── inngest/route.ts   # Inngest webhook
 │   │   ├── revalidate/route.ts
 │   │   ├── subscribe/route.ts
 │   │   ├── digest/route.ts
-│   │   └── og/route.tsx       # Dynamic OG images
+│   │   ├── og/route.tsx       # Dynamic OG images
+│   │   └── admin/login/route.ts  # Cookie-based admin auth
 │   ├── layout.tsx             # Root layout (Inter font, metadata)
 │   ├── globals.css            # Tailwind v4 imports
 │   ├── robots.ts
 │   ├── sitemap.ts
-│   └── rss.xml/route.ts
+│   ├── rss.xml/route.ts
+│   └── feed.json/route.ts     # JSON Feed 1.1
 ├── components/
 │   ├── charts/                # RadarScoreChart, TrendChart (Recharts)
 │   ├── layout/                # Header, Footer
-│   └── ui/                    # ToolCard, ScoreBadge, DeltaBadge
+│   └── ui/                    # ToolCard (with sparklines), ScoreBadge, DeltaBadge, SortControls
 ├── lib/
 │   ├── agents/
 │   │   ├── crawler/           # github.ts, reddit.ts, hn.ts, arxiv.ts, g2.ts, changelog.ts
@@ -154,10 +162,14 @@ src/
 │       ├── compute-radar-score.ts
 │       └── __tests__/
 scripts/
-├── seed-tools.ts              # Seed 50 tools into Neon
+├── seed-tools.ts              # Seed 50 tools into Neon (includes npmPackage)
+├── set-npm-packages.ts        # One-time: populate npm_package on existing tools
 └── run-migration.ts           # Run Drizzle migration
 drizzle/
-└── 0000_initial_schema.sql    # Initial DDL
+├── 0000_initial_schema.sql    # Initial DDL
+└── 0001_add_npm_package.sql   # ALTER TABLE tools ADD COLUMN npm_package TEXT
+src/
+└── middleware.ts              # Admin route protection (cookie-based)
 e2e/
 └── critical-flows.spec.ts     # 34 Playwright tests
 ```
@@ -183,6 +195,7 @@ erDiagram
         boolean api_available
         text website_url
         text github_url
+        text npm_package "optional npm package name"
         text logo_url
         boolean is_dead
         timestamp dead_since
@@ -259,15 +272,16 @@ Scores are percentile-normalized across all tools. Missing signals redistribute 
 ## Pipeline Steps (weekly-pipeline.ts)
 
 1. **Create pipeline run** — log start in `pipeline_runs`
-2. **Fetch tools** — all 50 from `tools` table
+2. **Fetch tools** — all 50 from `tools` table (includes `npmPackage`)
 3. **Tiered selection** — top 50 by RadarScore weekly, rest monthly
-4. **Crawl** — 6 adapters per tool (parallel, fail-continue)
+4. **Crawl** — 6 adapters per tool (parallel, fail-continue); GitHub crawler also fetches npm weekly downloads from `api.npmjs.org` when `npmPackage` is set
 5. **Store signals** — insert into `signals` table
 6. **Score** — compute RadarScore + delta from previous week
-7. **Generate comparisons** — Claude enrichment for top tool pairs
-8. **Revalidate** — trigger ISR page invalidation
-9. **Send digest** — email to subscribers
-10. **Finalize** — mark `pipeline_runs` complete with stats
+7. **Dead tool detection** — flag tools with 0 commits + no release in 90+ days (`isDead=true`, `deadSince` set)
+8. **Generate comparisons** — Claude enrichment for top tool pairs
+9. **Revalidate** — trigger ISR page invalidation
+10. **Send digest** — email to subscribers
+11. **Finalize** — mark `pipeline_runs` complete with stats
 
 ---
 
@@ -281,3 +295,7 @@ Scores are percentile-normalized across all tools. Missing signals redistribute 
 | Tiered updates | Top 50 weekly, rest monthly | Budget control — avoids 200+ LLM calls per run |
 | Orchestration | Inngest | Event-driven, Vercel-native, built-in retries and fan-out |
 | LLM provider | Claude (Anthropic) | Both crawling intelligence and enrichment generation |
+| npm stats | `api.npmjs.org` (no auth) | Free download counts factored into adoption momentum |
+| Admin auth | httpOnly cookie vs `ADMIN_PASSWORD` | Simple, no user DB needed; middleware protects all `/admin/*` |
+| Dead tool detection | GitHub signal: 0 commits + no release in 90d | Avoids a separate scheduled job; runs at end of weekly pipeline |
+| Feeds | RSS + JSON Feed 1.1 | Covers traditional RSS readers and modern feed clients |

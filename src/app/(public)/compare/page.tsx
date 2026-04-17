@@ -3,8 +3,9 @@ import { tools, comparisons } from "@/lib/db/schema";
 import { eq, and, or, desc, asc } from "drizzle-orm";
 import { RadarScoreChart } from "@/components/charts/radar-score-chart";
 import { ScoreBadge } from "@/components/ui/score-badge";
+import { CompareToolSelect } from "@/components/ui/compare-tool-select";
 import type { SubScores } from "@/lib/schemas";
-import Link from "next/link";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +17,9 @@ export const metadata: Metadata = {
 
 export default async function ComparePage({
   searchParams,
-}: {
+}: Readonly<{
   searchParams: Promise<{ a?: string; b?: string }>;
-}) {
+}>) {
   const { a, b } = await searchParams;
   const db = getDb();
 
@@ -53,8 +54,8 @@ export default async function ComparePage({
       .from(comparisons)
       .where(
         or(
-          and(eq(comparisons.toolAId, a!), eq(comparisons.toolBId, b!)),
-          and(eq(comparisons.toolAId, b!), eq(comparisons.toolBId, a!))
+          and(eq(comparisons.toolAId, a ?? ""), eq(comparisons.toolBId, b ?? "")),
+          and(eq(comparisons.toolAId, b ?? ""), eq(comparisons.toolBId, a ?? ""))
         )
       )
       .orderBy(desc(comparisons.weekOf))
@@ -83,20 +84,12 @@ export default async function ComparePage({
 
       {/* Tool pickers */}
       <div className="grid gap-4 sm:grid-cols-2 mb-8">
-        <ToolPicker
-          label="Tool A"
-          tools={allTools ?? []}
-          selected={a}
-          otherSelected={b}
-          paramName="a"
-        />
-        <ToolPicker
-          label="Tool B"
-          tools={allTools ?? []}
-          selected={b}
-          otherSelected={a}
-          paramName="b"
-        />
+        <Suspense fallback={<div className="h-10 rounded-lg border border-border bg-card animate-pulse" />}>
+          <CompareToolSelect label="Tool A" tools={allTools} paramName="a" selected={a} otherSelected={b} />
+        </Suspense>
+        <Suspense fallback={<div className="h-10 rounded-lg border border-border bg-card animate-pulse" />}>
+          <CompareToolSelect label="Tool B" tools={allTools} paramName="b" selected={b} otherSelected={a} />
+        </Suspense>
       </div>
 
       {toolA && toolB ? (
@@ -133,41 +126,46 @@ export default async function ComparePage({
 
           {/* Dimension breakdown table */}
           <div className="rounded-xl border border-border bg-card overflow-hidden mb-8">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-background">
-                  <th className="text-left p-3 font-medium">Dimension</th>
-                  <th className="text-right p-3 font-medium">{toolA.name}</th>
-                  <th className="text-right p-3 font-medium">{toolB.name}</th>
-                  <th className="text-center p-3 font-medium">Winner</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(["adoptionMomentum", "developerSentiment", "enterpriseReadiness", "recency", "buzz"] as const).map(
-                  (dim) => {
-                    const valA = subScoresA[dim] ?? 0;
-                    const valB = subScoresB[dim] ?? 0;
-                    const winner = valA > valB ? toolA.name : valB > valA ? toolB.name : "Tie";
-                    return (
-                      <tr key={dim} className="border-b border-border last:border-0">
-                        <td className="p-3 capitalize">
-                          {dim.replace(/([A-Z])/g, " $1").trim()}
-                        </td>
-                        <td className={`p-3 text-right font-medium ${valA >= valB ? "text-primary" : ""}`}>
-                          {valA.toFixed(1)}
-                        </td>
-                        <td className={`p-3 text-right font-medium ${valB >= valA ? "text-secondary" : ""}`}>
-                          {valB.toFixed(1)}
-                        </td>
-                        <td className="p-3 text-center text-xs">
-                          {winner}
-                        </td>
-                      </tr>
-                    );
-                  }
-                )}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-background">
+                    <th className="sticky left-0 z-10 bg-background text-left p-3 font-medium min-w-[140px]">Dimension</th>
+                    <th className="text-right p-3 font-medium whitespace-nowrap">{toolA.name}</th>
+                    <th className="text-right p-3 font-medium whitespace-nowrap">{toolB.name}</th>
+                    <th className="text-center p-3 font-medium whitespace-nowrap">Winner</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(["adoptionMomentum", "developerSentiment", "enterpriseReadiness", "recency", "buzz"] as const).map(
+                    (dim) => {
+                      const valA = subScoresA[dim] ?? 0;
+                      const valB = subScoresB[dim] ?? 0;
+                      let winner: string;
+                      if (valA > valB) winner = toolA.name;
+                      else if (valB > valA) winner = toolB.name;
+                      else winner = "Tie";
+                      return (
+                        <tr key={dim} className="border-b border-border last:border-0">
+                          <td className="sticky left-0 z-10 bg-card p-3 capitalize font-medium">
+                            {dim.replaceAll(/([A-Z])/g, " $1").trim()}
+                          </td>
+                          <td className={`p-3 text-right font-medium ${valA >= valB ? "text-primary" : ""}`}>
+                            {valA.toFixed(1)}
+                          </td>
+                          <td className={`p-3 text-right font-medium ${valB >= valA ? "text-secondary" : ""}`}>
+                            {valB.toFixed(1)}
+                          </td>
+                          <td className="p-3 text-center text-xs whitespace-nowrap">
+                            {winner}
+                          </td>
+                        </tr>
+                      );
+                    }
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* AI comparison blurb */}
@@ -193,46 +191,3 @@ export default async function ComparePage({
   );
 }
 
-function ToolPicker({
-  label,
-  tools,
-  selected,
-  otherSelected,
-  paramName,
-}: {
-  label: string;
-  tools: Array<{ id: string; name: string; category: string; radarScore: string | null }>;  
-  selected?: string;
-  otherSelected?: string;
-  paramName: string;
-}) {
-  return (
-    <div>
-      <label className="block text-sm font-medium mb-1">{label}</label>
-      <div className="flex flex-wrap gap-2">
-        {tools.map((tool) => {
-          const isSelected = tool.id === selected;
-          const otherParam = paramName === "a" ? "b" : "a";
-          const href = otherSelected
-            ? `/compare?${paramName}=${tool.id}&${otherParam}=${otherSelected}`
-            : `/compare?${paramName}=${tool.id}`;
-
-          return (
-            <Link
-              key={tool.id}
-              href={href}
-              className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
-                isSelected
-                  ? "border-primary bg-primary/10 text-primary font-medium"
-                  : "border-border hover:border-primary/30"
-              }`}
-            >
-              {tool.name}
-              <span className="ml-1 text-xs text-muted">{Number(tool.radarScore ?? 0).toFixed(0)}</span>
-            </Link>
-          );
-        })}
-      </div>
-    </div>
-  );
-}

@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getDb } from "@/lib/db";
 import { tools, comparisons } from "@/lib/db/schema";
-import { desc, eq, and } from "drizzle-orm";
+import { desc, eq, and, or } from "drizzle-orm";
 
 /**
  * Generate AI-powered comparison blurbs for top tool pairs.
@@ -21,6 +21,8 @@ export async function enrichComparisons(weekOf: string) {
       category: tools.category,
       radarScore: tools.radarScore,
       subScores: tools.subScores,
+      websiteUrl: tools.websiteUrl,
+      githubUrl: tools.githubUrl,
     })
     .from(tools)
     .orderBy(desc(tools.radarScore))
@@ -28,12 +30,11 @@ export async function enrichComparisons(weekOf: string) {
 
   if (topTools.length < 2) return;
 
-  // Generate comparisons for adjacent pairs (1v2, 2v3, ... + 1v3 cross-category)
+  // Adjacent pairs (1v2, 2v3, …) + one cross-category pair
   const pairs: [typeof topTools[0], typeof topTools[0]][] = [];
   for (let i = 0; i < Math.min(topTools.length - 1, 5); i++) {
     pairs.push([topTools[i], topTools[i + 1]]);
   }
-  // Cross-category pair: #1 vs first tool in different category
   const firstCategory = topTools[0].category;
   const crossTool = topTools.find((t) => t.category !== firstCategory);
   if (crossTool) {
@@ -41,14 +42,19 @@ export async function enrichComparisons(weekOf: string) {
   }
 
   for (const [toolA, toolB] of pairs) {
-    // Check if comparison already exists for this week
+    // Normalise pair order so (A,B) and (B,A) always produce the same DB key
+    const [orderedA, orderedB] =
+      toolA.id < toolB.id ? [toolA, toolB] : [toolB, toolA];
+
     const existing = await db
       .select({ id: comparisons.id })
       .from(comparisons)
       .where(
         and(
-          eq(comparisons.toolAId, toolA.id),
-          eq(comparisons.toolBId, toolB.id),
+          or(
+            and(eq(comparisons.toolAId, orderedA.id), eq(comparisons.toolBId, orderedB.id)),
+            and(eq(comparisons.toolAId, orderedB.id), eq(comparisons.toolBId, orderedA.id))
+          ),
           eq(comparisons.weekOf, weekOf)
         )
       )
@@ -57,17 +63,23 @@ export async function enrichComparisons(weekOf: string) {
     if (existing.length > 0) continue;
 
     try {
-      const prompt = `Compare these two AI tools and generate a brief, objective comparison blurb (2-3 sentences) plus dimension scores.
+      const sourcesA = [toolA.websiteUrl, toolA.githubUrl].filter(Boolean).join(", ") || "no public URL";
+      const sourcesB = [toolB.websiteUrl, toolB.githubUrl].filter(Boolean).join(", ") || "no public URL";
 
-Tool A: ${toolA.name} (Category: ${toolA.category}, RadarScore: ${toolA.radarScore})
-Sub-scores A: ${JSON.stringify(toolA.subScores)}
+      const prompt = `You are an objective AI tool analyst. Compare these two tools based on the scoring data provided.
 
-Tool B: ${toolB.name} (Category: ${toolB.category}, RadarScore: ${toolB.radarScore})
-Sub-scores B: ${JSON.stringify(toolB.subScores)}
+Tool A: ${orderedA.name} (Category: ${orderedA.category}, RadarScore: ${orderedA.radarScore})
+Sources: ${sourcesA}
+Sub-scores: ${JSON.stringify(orderedA.subScores)}
 
-Reply ONLY with a JSON object:
+Tool B: ${orderedB.name} (Category: ${orderedB.category}, RadarScore: ${orderedB.radarScore})
+Sources: ${sourcesB}
+Sub-scores: ${JSON.stringify(orderedB.subScores)}
+
+Reply ONLY with a JSON object, no markdown:
 {
-  "blurb": "2-3 sentence comparison",
+  "blurb": "2-3 sentence objective comparison grounded in the score data. Cite specific sub-score differences (e.g. 'Tool A leads on adoption momentum with X vs Y'). Do not speculate beyond the data.",
+  "confidence": 0-100,
   "dimensions": [
     {"dimension": "Performance", "toolAValue": 0-100, "toolBValue": 0-100, "winner": "a"|"b"|"tie"},
     {"dimension": "Developer Experience", "toolAValue": 0-100, "toolBValue": 0-100, "winner": "a"|"b"|"tie"},
@@ -75,11 +87,13 @@ Reply ONLY with a JSON object:
     {"dimension": "Community", "toolAValue": 0-100, "toolBValue": 0-100, "winner": "a"|"b"|"tie"},
     {"dimension": "Innovation", "toolAValue": 0-100, "toolBValue": 0-100, "winner": "a"|"b"|"tie"}
   ]
-}`;
+}
+
+Set confidence lower (< 60) when the tools have similar scores across all dimensions and it's hard to distinguish a clear winner.`;
 
       const response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 500,
+        model: "claude-sonnet-4-6",
+        max_tokens: 600,
         messages: [{ role: "user", content: prompt }],
       });
 
@@ -89,18 +103,24 @@ Reply ONLY with a JSON object:
           : "";
 
       if (!text.startsWith("{")) continue;
-      const data = JSON.parse(text);
+
+      const data = JSON.parse(text) as {
+        blurb: string;
+        confidence?: number;
+        dimensions: unknown[];
+      };
+
+      const needsReview = (data.confidence ?? 100) < 60;
 
       await db.insert(comparisons).values({
-        toolAId: toolA.id,
-        toolBId: toolB.id,
+        toolAId: orderedA.id,
+        toolBId: orderedB.id,
         comparisonBlurb: data.blurb,
-        dimensions: data.dimensions,
+        dimensions: { items: data.dimensions, confidence: data.confidence ?? 100, needsReview },
         generatedAt: new Date(),
         weekOf,
       });
     } catch {
-      // Skip failed comparison, not critical
       continue;
     }
   }

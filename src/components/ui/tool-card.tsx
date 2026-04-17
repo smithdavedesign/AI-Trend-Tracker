@@ -10,6 +10,7 @@ interface ToolCardProps {
   delta: number | null;
   pricingTier: string;
   selfHostable: boolean;
+  sparkline?: number[];
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -20,6 +21,43 @@ const CATEGORY_COLORS: Record<string, string> = {
   vertical: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300",
 };
 
+function Sparkline({ values }: Readonly<{ values: number[] }>) {
+  if (values.length < 2) return null;
+
+  const W = 56;
+  const H = 24;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const points = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * W;
+    const y = H - ((v - min) / range) * H;
+    return `${x},${y}`;
+  });
+
+  const trending = (values.at(-1) ?? 0) >= values[0];
+
+  return (
+    <svg
+      width={W}
+      height={H}
+      viewBox={`0 0 ${W} ${H}`}
+      className="shrink-0 hidden sm:block"
+      aria-hidden="true"
+    >
+      <polyline
+        points={points.join(" ")}
+        fill="none"
+        stroke={trending ? "var(--color-secondary, #16a34a)" : "var(--color-danger, #dc2626)"}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function ToolCard({
   rank,
   id,
@@ -29,7 +67,8 @@ export function ToolCard({
   delta,
   pricingTier,
   selfHostable,
-}: ToolCardProps) {
+  sparkline,
+}: Readonly<ToolCardProps>) {
   return (
     <Link
       href={`/tool/${id}`}
@@ -62,6 +101,10 @@ export function ToolCard({
           )}
         </div>
       </div>
+
+      {sparkline && sparkline.length >= 2 && (
+        <Sparkline values={sparkline} />
+      )}
 
       <svg
         className="w-4 h-4 text-muted group-hover:text-primary transition-colors shrink-0"

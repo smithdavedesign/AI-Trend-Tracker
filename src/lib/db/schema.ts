@@ -68,6 +68,7 @@ export const tools = pgTable(
     websiteUrl: text("website_url"),
     githubUrl: text("github_url"),
     logoUrl: text("logo_url"),
+    npmPackage: text("npm_package"),
     isDead: boolean("is_dead").notNull().default(false),
     deadSince: timestamp("dead_since", { withTimezone: true }),
     radarScore: numeric("radar_score", { precision: 5, scale: 2 })

@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { Signal } from "@/lib/schemas";
 
 interface ToolInput {
@@ -7,53 +6,86 @@ interface ToolInput {
   websiteUrl?: string | null;
 }
 
+function toG2Slug(name: string): string {
+  return name
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-|-$/g, "");
+}
+
+interface JsonLdNode {
+  "@type"?: string;
+  aggregateRating?: {
+    ratingValue?: number | string;
+    reviewCount?: number | string;
+    bestRating?: number | string;
+  };
+  "@graph"?: JsonLdNode[];
+}
+
+function extractAggregateRating(jsonLd: JsonLdNode) {
+  if (jsonLd.aggregateRating) return jsonLd.aggregateRating;
+  if (Array.isArray(jsonLd["@graph"])) {
+    for (const node of jsonLd["@graph"]) {
+      if (node.aggregateRating) return node.aggregateRating;
+    }
+  }
+  return null;
+}
+
 /**
- * Crawl G2 data using Claude as an AI agent to extract structured info.
- * Since G2 has no public API, we use Claude with web context.
+ * Crawl G2 product review pages for real rating and review count data.
+ * Extracts JSON-LD AggregateRating schema when available.
+ * Returns null (rather than hallucinated data) if the page is unavailable.
  */
 export async function crawlG2(tool: ToolInput): Promise<Signal | null> {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
-
-  const client = new Anthropic();
-
-  const searchUrl = `https://www.g2.com/search?query=${encodeURIComponent(tool.name)}`;
-
-  const prompt = `You are a data extraction assistant. I need structured review data for the AI tool "${tool.name}".
-
-Based on your knowledge of G2 reviews and enterprise software ratings, provide your best estimate of the following metrics for "${tool.name}":
-
-1. starRating (0-5, one decimal): Overall G2 star rating
-2. reviewCount (integer): Approximate number of G2 reviews
-3. reviewGrowth30d (integer): Estimated new reviews in the last 30 days
-4. satisfactionPct (0-100 or null): User satisfaction percentage
-
-Reply ONLY with a JSON object, no explanation:
-{"starRating": number, "reviewCount": number, "reviewGrowth30d": number, "satisfactionPct": number|null}
-
-If you have no information about this tool on G2, reply with: null`;
+  const slug = toG2Slug(tool.name);
+  const url = `https://www.g2.com/products/${slug}/reviews`;
 
   try {
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 200,
-      messages: [{ role: "user", content: prompt }],
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; AIRadar/1.0; +https://aidar.vercel.app)",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      signal: AbortSignal.timeout(12_000),
     });
 
-    const text =
-      response.content[0].type === "text" ? response.content[0].text.trim() : "";
+    if (!res.ok) return null;
 
-    if (text === "null" || !text.startsWith("{")) return null;
+    const html = await res.text();
 
-    const data = JSON.parse(text);
+    // Extract all JSON-LD blocks
+    const jsonLdRegex = /<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g;
+    let match: RegExpExecArray | null;
+    let rating = null;
+
+    while ((match = jsonLdRegex.exec(html)) !== null) {
+      try {
+        const parsed = JSON.parse(match[1]) as JsonLdNode;
+        rating = extractAggregateRating(parsed);
+        if (rating) break;
+      } catch {
+        // malformed JSON-LD, skip
+      }
+    }
+
+    if (!rating) return null;
+
+    const starRating = Number(rating.ratingValue ?? 0);
+    const reviewCount = Number(rating.reviewCount ?? 0);
+
+    if (starRating === 0 && reviewCount === 0) return null;
 
     return {
       toolId: tool.id,
       source: "g2",
       rawData: {
-        starRating: data.starRating ?? 0,
-        reviewCount: data.reviewCount ?? 0,
-        reviewGrowth30d: data.reviewGrowth30d ?? 0,
-        satisfactionPct: data.satisfactionPct ?? null,
+        starRating,
+        reviewCount,
+        reviewGrowth30d: 0,
+        satisfactionPct: starRating > 0 ? Math.round((starRating / 5) * 100) : null,
       },
       fetchedAt: new Date().toISOString(),
     };

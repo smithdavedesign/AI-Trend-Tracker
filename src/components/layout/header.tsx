@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { SearchBar } from "@/components/ui/search-bar";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home" },
@@ -29,18 +31,21 @@ export function Header() {
           AIRadar
         </Link>
 
-        <nav className="hidden md:flex items-center gap-6">
+        <nav className="flex items-center gap-4 md:gap-6">
+          <SearchBar />
           {NAV_ITEMS.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="text-sm text-muted hover:text-foreground transition-colors"
+              className="hidden md:block text-sm text-muted hover:text-foreground transition-colors"
             >
               {item.label}
             </Link>
           ))}
 
-          <div className="relative group">
+          <ThemeToggle />
+
+          <div className="relative group hidden md:block">
             <button className="text-sm text-muted hover:text-foreground transition-colors">
               Categories ▾
             </button>

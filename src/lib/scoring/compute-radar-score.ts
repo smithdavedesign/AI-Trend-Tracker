@@ -40,8 +40,12 @@ function extractAdoptionMomentum(signals: Signal[]): number | null {
   if (github?.rawData) {
     const stars = github.rawData.starsGrowth30d;
     if (typeof stars === "number") {
-      // Normalize: 0 stars growth = 0, 500+ = 100
       values.push(Math.min(100, (stars / 500) * 100));
+    }
+    const npmDownloads = github.rawData.npmWeeklyDownloads;
+    if (typeof npmDownloads === "number") {
+      // 0 = 0, 1M+ weekly downloads = 100
+      values.push(Math.min(100, (npmDownloads / 1_000_000) * 100));
     }
   }
 

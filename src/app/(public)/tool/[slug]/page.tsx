@@ -97,8 +97,31 @@ export default async function ToolPage({
     : [];
   const compNameMap = new Map(compTools.map((t) => [t.id, t.name]));
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: tool.name,
+    applicationCategory: "AIApplication",
+    url: tool.websiteUrl ?? undefined,
+    description: tool.summary ?? `${tool.name} AI tool — RadarScore ${Number(tool.radarScore).toFixed(1)}`,
+    ...(tool.pricingTier === "free"
+      ? { offers: { "@type": "Offer", price: "0", priceCurrency: "USD" } }
+      : {}),
+    aggregateRating: {
+      "@type": "AggregateRating",
+      ratingValue: Number(tool.radarScore).toFixed(1),
+      bestRating: "100",
+      worstRating: "0",
+      ratingCount: "1",
+    },
+  };
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-start gap-6 mb-8">
         <ScoreBadge score={Number(tool.radarScore)} size="lg" showLabel />

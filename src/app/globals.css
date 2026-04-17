@@ -29,13 +29,21 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not(.light) {
     --background: #0c0a09;
     --foreground: #fafaf9;
     --border: #292524;
     --card: #1c1917;
     --muted: #a8a29e;
   }
+}
+
+html.dark {
+  --background: #0c0a09;
+  --foreground: #fafaf9;
+  --border: #292524;
+  --card: #1c1917;
+  --muted: #a8a29e;
 }
 
 body {

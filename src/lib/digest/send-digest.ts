@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import { getDb } from "@/lib/db";
 import { digestSubscribers, scores, tools } from "@/lib/db/schema";
 import { eq, desc, isNull, inArray } from "drizzle-orm";
+import { generateUnsubscribeToken } from "@/lib/utils/unsubscribe-token";
 
 export async function sendWeeklyDigest(weekOf: string) {
   if (!process.env.RESEND_API_KEY) return;
@@ -94,26 +95,28 @@ export async function sendWeeklyDigest(weekOf: string) {
 
   <p style="color:#a8a29e;font-size:12px;text-align:center;margin-top:32px;">
     You're receiving this because you subscribed to AIRadar.
-    <a href="${siteUrl}/api/digest?unsubscribe=true&email=RECIPIENT" style="color:#a8a29e;">Unsubscribe</a>
+    <a href="UNSUBSCRIBE_URL" style="color:#a8a29e;">Unsubscribe</a>
   </p>
 </body>
 </html>`;
 
   // Send to each subscriber (batched)
-  const emails = subscribers.map((s) => s.email);
   const batchSize = 50;
 
-  for (let i = 0; i < emails.length; i += batchSize) {
-    const batch = emails.slice(i, i + batchSize);
+  for (let i = 0; i < subscribers.length; i += batchSize) {
+    const batch = subscribers.slice(i, i + batchSize);
     await Promise.allSettled(
-      batch.map((email) =>
-        resend.emails.send({
-          from: "AIRadar <digest@aidar.dev>",
+      batch.map(({ email }) => {
+        const token = generateUnsubscribeToken(email);
+        const unsubUrl = `${siteUrl}/api/unsubscribe?email=${encodeURIComponent(email)}&token=${token}`;
+        const personalised = html.replace("UNSUBSCRIBE_URL", unsubUrl);
+        return resend.emails.send({
+          from: process.env.RESEND_FROM ?? "AIRadar <onboarding@resend.dev>",
           to: email,
           subject: `AIRadar Weekly: Top AI Tool Movers – ${weekOf}`,
-          html: html.replace("RECIPIENT", encodeURIComponent(email)),
-        })
-      )
+          html: personalised,
+        });
+      })
     );
   }
 }

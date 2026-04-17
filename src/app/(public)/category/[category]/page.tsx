@@ -1,8 +1,10 @@
 import { getDb } from "@/lib/db";
 import { tools, scores } from "@/lib/db/schema";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, desc, asc, inArray } from "drizzle-orm";
 import { ToolCard } from "@/components/ui/tool-card";
+import { SortControls } from "@/components/ui/sort-controls";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -33,10 +35,13 @@ export async function generateMetadata({
 
 export default async function CategoryPage({
   params,
-}: {
+  searchParams,
+}: Readonly<{
   params: Promise<{ category: string }>;
-}) {
+  searchParams: Promise<{ sort?: string }>;
+}>) {
   const { category } = await params;
+  const { sort = "radar_score" } = await searchParams;
 
   if (!VALID_CATEGORIES.includes(category as (typeof VALID_CATEGORIES)[number])) {
     notFound();
@@ -45,11 +50,20 @@ export default async function CategoryPage({
   const meta = CATEGORY_META[category];
   const db = getDb();
 
+  let orderBy;
+  if (sort === "name") {
+    orderBy = asc(tools.name);
+  } else if (sort === "recency") {
+    orderBy = desc(tools.lastUpdated);
+  } else {
+    orderBy = desc(tools.radarScore);
+  }
+
   const toolList = await db
     .select()
     .from(tools)
     .where(eq(tools.category, category))
-    .orderBy(desc(tools.radarScore));
+    .orderBy(orderBy);
 
   // Fetch deltas
   const toolIds = toolList.map((t) => t.id);
@@ -68,16 +82,34 @@ export default async function CategoryPage({
     }
   }
 
+  // For adoption/recency sub-score sorts, post-sort by the actual sub-score value
+  const sortedToolList =
+    sort === "adoption" || sort === "recency"
+      ? [...toolList].sort((a, b) => {
+          const subKey =
+            sort === "adoption" ? "adoptionMomentum" : "recency";
+          const aVal = ((a.subScores as Record<string, number>)?.[subKey]) ?? 0;
+          const bVal = ((b.subScores as Record<string, number>)?.[subKey]) ?? 0;
+          return bVal - aVal;
+        })
+      : toolList;
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-3xl font-bold">{meta.title}</h1>
         <p className="mt-2 text-muted">{meta.description}</p>
       </div>
 
+      <div className="mb-6">
+        <Suspense>
+          <SortControls currentSort={sort} />
+        </Suspense>
+      </div>
+
       <div className="space-y-2">
-        {toolList.length > 0 ? (
-          toolList.map((tool, i) => (
+        {sortedToolList.length > 0 ? (
+          sortedToolList.map((tool, i) => (
             <ToolCard
               key={tool.id}
               rank={i + 1}
