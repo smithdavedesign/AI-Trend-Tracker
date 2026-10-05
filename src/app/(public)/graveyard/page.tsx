@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
 import { tools, scores } from "@/lib/db/schema";
-import { lt, asc, inArray, desc } from "drizzle-orm";
+import { lt, asc, inArray } from "drizzle-orm";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -34,10 +34,6 @@ export default async function GraveyardPage() {
 
   // Merge and deduplicate
   const decliningIds = new Set(decliningScores.map((d) => d.toolId));
-  const allGraveyardIds = new Set([
-    ...decliningIds,
-    ...staleTools.map((t) => t.id),
-  ]);
 
   // Fetch full tool data for declining tools
   const decliningToolData = decliningIds.size

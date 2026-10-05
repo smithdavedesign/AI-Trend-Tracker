@@ -1,6 +1,5 @@
 import { getDb } from "@/lib/db";
 import { digestSubscribers } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 type Theme = "dark" | "light" | "system";
 
@@ -15,19 +15,32 @@ function applyTheme(theme: Theme) {
     root.classList.add("dark");
   }
   localStorage.setItem("theme", theme);
+  window.dispatchEvent(new Event("theme-change"));
+}
+
+function subscribe(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener("theme-change", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("theme-change", callback);
+  };
+}
+
+function getSnapshot(): Theme {
+  const stored = localStorage.getItem("theme");
+  return stored === "dark" || stored === "light" || stored === "system" ? stored : "system";
+}
+
+function getServerSnapshot(): Theme {
+  return "system";
 }
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("system");
-
-  useEffect(() => {
-    const stored = localStorage.getItem("theme") as Theme | null;
-    setTheme(stored ?? "system");
-  }, []);
+  const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   function toggle() {
     const next: Theme = theme === "system" ? "dark" : theme === "dark" ? "light" : "system";
-    setTheme(next);
     applyTheme(next);
   }
 

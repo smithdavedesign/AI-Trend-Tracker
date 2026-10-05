@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
 import { scores, tools } from "@/lib/db/schema";
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, inArray } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
