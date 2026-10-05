@@ -27,12 +27,20 @@ export function SearchBar() {
 
   const openPalette = useCallback(() => {
     setOpen(true);
+    setQuery("");
+    setActiveIndex(0);
     if (tools.length === 0) {
       fetch("/api/tools")
         .then((r) => r.json())
         .then((data: ToolEntry[]) => setTools(data))
         .catch(() => null);
     }
+    // Focus the input after opening
+    requestAnimationFrame(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    });
   }, [tools.length]);
 
   useEffect(() => {
@@ -47,13 +55,6 @@ export function SearchBar() {
     return () => window.removeEventListener("keydown", onKey);
   }, [openPalette]);
 
-  useEffect(() => {
-    if (open) {
-      setQuery("");
-      setActiveIndex(0);
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
-  }, [open]);
 
   const results = query.trim()
     ? tools.filter((t) =>

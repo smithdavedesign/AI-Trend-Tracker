@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
 import { tools, signals, digestSubscribers, pipelineRuns, comparisons } from "@/lib/db/schema";
-import { desc, gte, isNull, count, eq, asc } from "drizzle-orm";
+import { desc, gte, isNull, count, eq, asc, sql } from "drizzle-orm";
 import Link from "next/link";
 import { DeadToolRow } from "./dead-tool-row";
 import { ScoreOverridePanel } from "./score-override";
@@ -26,11 +26,10 @@ export default async function AdminPage() {
   const [{ value: toolCount }] = await db.select({ value: count() }).from(tools);
 
   // Signal count (last 7 days)
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const [{ value: signalCount }] = await db
     .select({ value: count() })
     .from(signals)
-    .where(gte(signals.fetchedAt, weekAgo));
+    .where(gte(signals.fetchedAt, sql`now() - interval '7 days'`));
 
   // Subscriber count
   const [{ value: subscriberCount }] = await db
