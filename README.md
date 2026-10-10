@@ -1,5 +1,52 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Installation
+
+To install the project, clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/smithdavedesign/AI-Trend-Tracker.git
+cd AI-Trend-Tracker
+npm install
+```
+
+## Configuration
+
+Copy the example environment file and fill in the required variables:
+
+```bash
+cp .env.local.example .env.local
+```
+
+Then edit `.env.local` and add your configuration values.
+
+The following variables are available (see `.env.local.example` for details):
+
+- `DATABASE_URL`: Neon Postgres connection string
+- `ANTHROPIC_API_KEY`: API key for Anthropic (Claude)
+- `INNGEST_DEV`: Set to 1 for development (no keys needed)
+- `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY`: For production Inngest
+- `RESEND_API_KEY`: For email digests
+- `RESEND_FROM`: The from address for emails
+- `GITHUB_TOKEN`: GitHub API token (optional, raises rate limit)
+- `PRODUCT_HUNT_TOKEN`: Product Hunt developer token (optional)
+- `REVALIDATION_SECRET`: For on-demand ISR cache busting
+- `ADMIN_PASSWORD`: Admin dashboard password
+- `NEXT_PUBLIC_SITE_URL`: Public site URL (used in OG images, feeds, and digest emails)
+
+Note: Some variables are optional and have default values in development.
+
+## Available Scripts
+
+The project includes the following npm scripts:
+
+- `dev`: Run the development server (`next dev`)
+- `build`: Build the application for production (`next build`)
+- `start`: Start the production server (`next start`)
+- `lint`: Run ESLint to check for code issues
+- `test`: Run Vitest tests once
+- `test:watch`: Run Vitest tests in watch mode
+
 ## Getting Started
 
 First, run the development server:
