@@ -6,7 +6,7 @@ import {
   scores,
   pipelineRuns,
 } from "@/lib/db/schema";
-import { eq, desc, and, isNull } from "drizzle-orm";
+import { eq, desc, and, isNull, lt } from "drizzle-orm";
 import { computeRadarScore } from "@/lib/scoring/compute-radar-score";
 import { withRetry } from "@/lib/utils/retry";
 import type { Signal } from "@/lib/schemas";
@@ -162,7 +162,9 @@ export const weeklyPipeline = inngest.createFunction(
         const [prev] = await db
           .select({ radarScore: scores.radarScore })
           .from(scores)
-          .where(eq(scores.toolId, toolId))
+          // Compare against earlier weeks only, so a same-week rerun or retry
+          // doesn't use this week's own score as the baseline.
+          .where(and(eq(scores.toolId, toolId), lt(scores.weekOf, weekOf)))
           .orderBy(desc(scores.weekOf))
           .limit(1);
 
@@ -172,18 +174,22 @@ export const weeklyPipeline = inngest.createFunction(
             ? null
             : Math.round((computed.radarScore - previousScore) * 100) / 100;
 
-        await db.insert(scores).values({
-          toolId,
+        const row = {
           radarScore: String(computed.radarScore),
           adoptionMomentum: String(computed.adoptionMomentum),
           developerSentiment: String(computed.developerSentiment),
           enterpriseReadiness: String(computed.enterpriseReadiness),
           recency: String(computed.recency),
           buzz: String(computed.buzz),
-          weekOf,
           previousRadarScore: previousScore === null ? null : String(previousScore),
           delta: delta === null ? null : String(delta),
-        });
+        };
+        // One score per tool per week (idx_scores_tool_week): reruns and
+        // Inngest retries within the same week overwrite instead of failing.
+        await db
+          .insert(scores)
+          .values({ toolId, weekOf, ...row })
+          .onConflictDoUpdate({ target: [scores.toolId, scores.weekOf], set: row });
 
         await db
           .update(tools)
