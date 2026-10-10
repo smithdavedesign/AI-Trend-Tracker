@@ -41,14 +41,23 @@ async function crawlGitHubReleases(
 
   if (!res.ok) return null;
 
-  const releases = await res.json();
-  if (!Array.isArray(releases) || releases.length === 0) return null;
+  const all = await res.json();
+  if (!Array.isArray(all)) return null;
+
+  // The API orders by creation, not publication, and includes drafts and
+  // prereleases — so releases[0] can be an old prerelease. Use published
+  // releases only, newest first.
+  const releases = (
+    all as { published_at?: string | null; draft?: boolean; prerelease?: boolean; tag_name?: string }[]
+  )
+    .filter((r) => !r.draft && !r.prerelease && r.published_at)
+    .sort((a, b) => new Date(b.published_at!).getTime() - new Date(a.published_at!).getTime());
+  if (releases.length === 0) return null;
 
   // Count releases in last 90 days
   const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
   const recentReleases = releases.filter(
-    (r: { published_at?: string }) =>
-      r.published_at && new Date(r.published_at).getTime() > ninetyDaysAgo
+    (r) => new Date(r.published_at!).getTime() > ninetyDaysAgo
   );
 
   const latest = releases[0];
